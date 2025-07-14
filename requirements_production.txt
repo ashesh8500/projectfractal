@@ -13,7 +13,7 @@ plotly>=5.15.0
 matplotlib>=3.7.0
 
 # Database and utilities
-sqlite3  # Built into Python
+# sqlite3  # Built into Python
 python-dotenv>=1.0.0
 
 # Development and testing

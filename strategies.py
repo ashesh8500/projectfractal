@@ -74,8 +74,9 @@ class BaseStrategy(ABC):
         Returns:
             Normalized weights
         """
-        min_weight = min_weight or config.strategy.min_weight
-        max_weight = max_weight or config.strategy.max_weight
+        # Use more flexible constraints - allow strategies to express their preferences
+        min_weight = min_weight or 0.01  # Reduced from 0.05 to allow more flexibility
+        max_weight = max_weight or 0.80  # Increased from 0.4 to allow more concentration
         
         if min_weight >= max_weight:
             raise ValidationError(f"min_weight ({min_weight}) must be less than max_weight ({max_weight})")
@@ -88,14 +89,17 @@ class BaseStrategy(ABC):
         if weights_series.empty:
             raise StrategyError("All weights are zero or negative")
         
-        # Initial clipping
-        clipped = weights_series.clip(min_weight, max_weight)
+        # First normalize to sum to 1
+        normalized = weights_series / weights_series.sum()
         
-        # Iterative normalization to handle max_weight constraints
+        # Apply minimum weight constraint
+        normalized = normalized.clip(lower=min_weight)
+        
+        # Apply maximum weight constraint with redistribution
         max_iterations = 10
         for iteration in range(max_iterations):
-            # Normalize
-            normalized = clipped / clipped.sum()
+            # Normalize after min constraint
+            normalized = normalized / normalized.sum()
             
             # Check if any weight exceeds max_weight
             over_max = normalized > max_weight
@@ -116,16 +120,20 @@ class BaseStrategy(ABC):
                 break
             
             # Add excess proportionally to under-max weights
-            adjustment = excess * (normalized[under_max] / normalized[under_max].sum())
-            normalized[under_max] += adjustment
+            if normalized[under_max].sum() > 0:
+                adjustment = excess * (normalized[under_max] / normalized[under_max].sum())
+                normalized[under_max] += adjustment
+            else:
+                # Equal distribution if all under-max weights are zero
+                normalized[under_max] = excess / under_max.sum()
             
-            # Clip again
-            clipped = normalized.clip(min_weight, max_weight)
+            # Clip again to maintain bounds
+            normalized = normalized.clip(min_weight, max_weight)
         
-        # Final validation
+        # Final normalization
         final_sum = normalized.sum()
-        if abs(final_sum - 1.0) > 0.01:
-            logger.warning(f"Final weights sum to {final_sum:.4f}, normalizing")
+        if abs(final_sum - 1.0) > 0.001:
+            logger.debug(f"Final weights sum to {final_sum:.4f}, normalizing")
             normalized = normalized / final_sum
         
         return normalized.to_dict()
@@ -204,21 +212,48 @@ class BollingerStrategy(BaseStrategy):
     
     def _scores_to_weights(self, scores: Dict[str, float], current_weights: Dict[str, float]) -> Dict[str, float]:
         """Convert scores to portfolio weights."""
-        adjustment_factor = 0.2  # How aggressively to rebalance
+        # Use a more sophisticated approach to convert scores to weights
         
-        new_weights = {}
+        # Calculate score statistics
+        score_values = list(scores.values())
+        if len(score_values) <= 1:
+            return current_weights
+        
+        score_mean = np.mean(score_values)
+        score_std = np.std(score_values)
+        
+        # If no variation in scores, return current weights
+        if score_std < 1e-6:
+            logger.debug("No variation in Bollinger scores, returning current weights")
+            return current_weights
+        
+        # Convert scores to z-scores for standardization
+        z_scores = {k: (v - score_mean) / score_std for k, v in scores.items()}
+        
+        # Apply sigmoid function to create more pronounced differences
+        # Higher scores (undervalued) get higher weights
+        sigmoid_scores = {k: 1 / (1 + np.exp(-2 * z)) for k, z in z_scores.items()}
+        
+        # Normalize sigmoid scores to create weights
+        total_sigmoid = sum(sigmoid_scores.values())
+        if total_sigmoid > 0:
+            raw_weights = {k: v / total_sigmoid for k, v in sigmoid_scores.items()}
+        else:
+            raw_weights = {k: 1.0 / len(scores) for k in scores}
+        
+        # Blend with current weights for stability (80% new, 20% current)
+        blended_weights = {}
         for symbol in current_weights:
-            current_weight = current_weights[symbol]
-            score = scores.get(symbol, 0.0)
-            
-            # Adjust weight based on score
-            adjustment = score * adjustment_factor * current_weight
-            new_weight = current_weight + adjustment
-            
-            # Ensure positive weights
-            new_weights[symbol] = max(new_weight, 0.01)
+            new_weight = 0.8 * raw_weights.get(symbol, 1.0/len(current_weights)) + 0.2 * current_weights[symbol]
+            blended_weights[symbol] = new_weight
         
-        return new_weights
+        logger.debug(f"Bollinger scores: {scores}")
+        logger.debug(f"Z-scores: {z_scores}")
+        logger.debug(f"Sigmoid scores: {sigmoid_scores}")
+        logger.debug(f"Raw weights: {raw_weights}")
+        logger.debug(f"Blended weights: {blended_weights}")
+        
+        return blended_weights
 
 
 class MLStrategy(BaseStrategy):
@@ -237,9 +272,13 @@ class MLStrategy(BaseStrategy):
         try:
             self._validate_inputs(prices, current_weights)
             
-            if len(prices) < self.lookback_days:
-                logger.warning(f"Insufficient data for ML strategy (need {self.lookback_days}, have {len(prices)})")
+            # Use available data if less than requested lookback, but require minimum 60 days
+            min_required = min(self.lookback_days, 60)
+            if len(prices) < min_required:
+                logger.warning(f"Insufficient data for ML strategy (need {min_required}, have {len(prices)})")
                 return current_weights
+            
+            effective_lookback = min(self.lookback_days, len(prices))
             
             symbols = list(current_weights.keys())
             predictions = {}
@@ -316,30 +355,157 @@ class MLStrategy(BaseStrategy):
     
     def _predictions_to_weights(self, predictions: Dict[str, float], current_weights: Dict[str, float]) -> Dict[str, float]:
         """Convert return predictions to portfolio weights."""
-        # Rank predictions
-        sorted_predictions = sorted(predictions.items(), key=lambda x: x[1], reverse=True)
+        pred_values = list(predictions.values())
         
-        new_weights = {}
-        total_symbols = len(current_weights)
+        # Check if predictions have meaningful variation
+        if len(pred_values) <= 1:
+            return current_weights
         
-        for i, (symbol, prediction) in enumerate(sorted_predictions):
-            # Higher predicted returns get higher weights
-            rank_weight = (total_symbols - i) / total_symbols
-            base_weight = 1.0 / total_symbols
+        pred_std = np.std(pred_values)
+        if pred_std < 1e-6:
+            logger.debug("No variation in ML predictions, returning current weights")
+            return current_weights
+        
+        # Normalize predictions to z-scores
+        pred_mean = np.mean(pred_values)
+        z_scores = {k: (v - pred_mean) / pred_std for k, v in predictions.items()}
+        
+        # Apply exponential weighting to amplify differences
+        # Higher predictions get exponentially more weight
+        exp_scores = {k: np.exp(2 * z) for k, z in z_scores.items()}
+        
+        # Normalize to create weights
+        total_exp = sum(exp_scores.values())
+        if total_exp > 0:
+            raw_weights = {k: v / total_exp for k, v in exp_scores.items()}
+        else:
+            raw_weights = {k: 1.0 / len(predictions) for k in predictions}
+        
+        # Blend with current weights (70% new, 30% current)
+        blended_weights = {}
+        for symbol in current_weights:
+            new_weight = 0.7 * raw_weights.get(symbol, 1.0/len(current_weights)) + 0.3 * current_weights[symbol]
+            blended_weights[symbol] = new_weight
+        
+        logger.debug(f"ML predictions: {predictions}")
+        logger.debug(f"Z-scores: {z_scores}")
+        logger.debug(f"Exponential scores: {exp_scores}")
+        logger.debug(f"Raw weights: {raw_weights}")
+        logger.debug(f"Blended weights: {blended_weights}")
+        
+        return blended_weights
+
+
+class MomentumStrategy(BaseStrategy):
+    """Momentum-based rebalancing strategy for testing parameter sensitivity."""
+    
+    def __init__(self, lookback_period: int = None, momentum_threshold: float = None):
+        super().__init__("Momentum Strategy")
+        self.lookback_period = lookback_period or 20
+        self.momentum_threshold = momentum_threshold or 0.02
+        
+        logger.info(f"Momentum strategy: lookback_period={self.lookback_period}, threshold={self.momentum_threshold}")
+    
+    def calculate_new_weights(self, prices: pd.DataFrame, current_weights: Dict[str, float]) -> Dict[str, float]:
+        """Calculate weights based on price momentum."""
+        try:
+            self._validate_inputs(prices, current_weights)
             
-            # Combine rank-based weight with prediction strength
-            prediction_factor = 1.0 + np.tanh(prediction * 10)  # Scale and bound
-            new_weight = base_weight * rank_weight * prediction_factor
+            if len(prices) < self.lookback_period:
+                logger.warning(f"Insufficient data for Momentum strategy (need {self.lookback_period}, have {len(prices)})")
+                return current_weights
             
-            new_weights[symbol] = new_weight
+            symbols = list(current_weights.keys())
+            momentum_scores = {}
+            
+            for symbol in symbols:
+                if symbol not in prices.columns:
+                    logger.warning(f"No price data for {symbol}")
+                    momentum_scores[symbol] = 0.0
+                    continue
+                
+                price_series = prices[symbol].dropna()
+                if len(price_series) < self.lookback_period:
+                    momentum_scores[symbol] = 0.0
+                    continue
+                
+                # Calculate momentum as percentage change over lookback period
+                current_price = price_series.iloc[-1]
+                past_price = price_series.iloc[-self.lookback_period]
+                momentum = (current_price - past_price) / past_price
+                
+                # Apply threshold - only consider significant momentum
+                if abs(momentum) > self.momentum_threshold:
+                    momentum_scores[symbol] = momentum
+                else:
+                    momentum_scores[symbol] = 0.0
+                
+                logger.debug(f"{symbol}: momentum={momentum:.4f}, score={momentum_scores[symbol]:.4f}")
+            
+            # Convert momentum scores to weights
+            new_weights = self._momentum_to_weights(momentum_scores, current_weights)
+            
+            # Apply constraints
+            final_weights = self.clip_and_normalize_weights(new_weights)
+            
+            logger.info(f"Momentum strategy generated new weights: {final_weights}")
+            return final_weights
+            
+        except Exception as e:
+            logger.error(f"Momentum strategy failed: {e}")
+            raise StrategyError(f"Momentum strategy calculation failed: {e}") from e
+    
+    def _momentum_to_weights(self, momentum_scores: Dict[str, float], current_weights: Dict[str, float]) -> Dict[str, float]:
+        """Convert momentum scores to portfolio weights."""
+        momentum_values = list(momentum_scores.values())
         
-        return new_weights
+        # Check if momentum scores have meaningful variation
+        if len(momentum_values) <= 1:
+            return current_weights
+        
+        momentum_std = np.std(momentum_values)
+        if momentum_std < 1e-6:
+            logger.debug("No variation in momentum scores, returning current weights")
+            return current_weights
+        
+        # Normalize momentum scores to z-scores
+        momentum_mean = np.mean(momentum_values)
+        z_scores = {k: (v - momentum_mean) / momentum_std for k, v in momentum_scores.items()}
+        
+        # Apply tanh transformation to create bounded weights
+        # Higher momentum gets higher weight but with diminishing returns
+        tanh_scores = {k: np.tanh(z) for k, z in z_scores.items()}
+        
+        # Shift to positive range and normalize
+        min_tanh = min(tanh_scores.values())
+        shifted_scores = {k: v - min_tanh + 0.1 for k, v in tanh_scores.items()}
+        
+        total_shifted = sum(shifted_scores.values())
+        if total_shifted > 0:
+            raw_weights = {k: v / total_shifted for k, v in shifted_scores.items()}
+        else:
+            raw_weights = {k: 1.0 / len(momentum_scores) for k in momentum_scores}
+        
+        # Blend with current weights (75% new, 25% current)
+        blended_weights = {}
+        for symbol in current_weights:
+            new_weight = 0.75 * raw_weights.get(symbol, 1.0/len(current_weights)) + 0.25 * current_weights[symbol]
+            blended_weights[symbol] = new_weight
+        
+        logger.debug(f"Momentum scores: {momentum_scores}")
+        logger.debug(f"Z-scores: {z_scores}")
+        logger.debug(f"Tanh scores: {tanh_scores}")
+        logger.debug(f"Raw weights: {raw_weights}")
+        logger.debug(f"Blended weights: {blended_weights}")
+        
+        return blended_weights
 
 
 # Strategy registry
 STRATEGIES = {
     'bollinger': BollingerStrategy,
-    'ml': MLStrategy
+    'ml': MLStrategy,
+    'momentum': MomentumStrategy
 }
 
 

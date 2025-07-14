@@ -62,68 +62,83 @@ class DatabaseManager:
             cursor.close()
     
     def _initialize_database(self) -> None:
-        """Initialize database schema."""
+        """Initialize and migrate database schema."""
         try:
             with self._get_cursor() as cursor:
-                # Portfolios table
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS portfolios (
-                        user_id TEXT NOT NULL,
-                        name TEXT NOT NULL,
-                        holdings TEXT NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        PRIMARY KEY (user_id, name)
-                    )
-                ''')
+                # Run schema creation
+                self._create_tables(cursor)
                 
-                # Strategies table
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS strategies (
-                        user_id TEXT NOT NULL,
-                        name TEXT NOT NULL,
-                        strategy_type TEXT NOT NULL,
-                        parameters TEXT,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        PRIMARY KEY (user_id, name)
-                    )
-                ''')
-                
-                # Portfolio history table for tracking changes
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS portfolio_history (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        user_id TEXT NOT NULL,
-                        portfolio_name TEXT NOT NULL,
-                        action TEXT NOT NULL,
-                        old_holdings TEXT,
-                        new_holdings TEXT,
-                        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                ''')
-                
-                # Create indexes for better performance
-                cursor.execute('''
-                    CREATE INDEX IF NOT EXISTS idx_portfolios_user 
-                    ON portfolios(user_id)
-                ''')
-                
-                cursor.execute('''
-                    CREATE INDEX IF NOT EXISTS idx_strategies_user 
-                    ON strategies(user_id)
-                ''')
-                
-                cursor.execute('''
-                    CREATE INDEX IF NOT EXISTS idx_history_user_portfolio 
-                    ON portfolio_history(user_id, portfolio_name)
-                ''')
+                # Run schema migrations
+                self._run_migrations(cursor)
                 
             logger.info("Database schema initialized successfully")
             
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}")
             raise DatabaseError(f"Database initialization failed: {e}") from e
+
+    def _create_tables(self, cursor: sqlite3.Cursor) -> None:
+        """Create database tables if they do not exist."""
+        # Portfolios table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS portfolios (
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                holdings TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, name)
+            )
+        ''')
+        
+        # Strategies table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS strategies (
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                strategy_type TEXT NOT NULL,
+                parameters TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, name)
+            )
+        ''')
+        
+        # Portfolio history table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS portfolio_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                portfolio_name TEXT NOT NULL,
+                action TEXT NOT NULL,
+                old_holdings TEXT,
+                new_holdings TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Create indexes
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_portfolios_user ON portfolios(user_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_strategies_user ON strategies(user_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_history_user_portfolio ON portfolio_history(user_id, portfolio_name)')
+
+    def _run_migrations(self, cursor: sqlite3.Cursor) -> None:
+        """Run database schema migrations."""
+        self._add_column_if_not_exists(cursor, 'portfolios', 'created_at', 'TIMESTAMP')
+        self._add_column_if_not_exists(cursor, 'portfolios', 'updated_at', 'TIMESTAMP')
+        self._add_column_if_not_exists(cursor, 'strategies', 'created_at', 'TIMESTAMP')
+        self._add_column_if_not_exists(cursor, 'strategies', 'updated_at', 'TIMESTAMP')
+    
+    def _add_column_if_not_exists(self, cursor: sqlite3.Cursor, table: str, column: str, col_type: str, default: Any = None) -> None:
+        """Add a column to a table if it does not exist."""
+        try:
+            cursor.execute(f"SELECT {column} FROM {table} LIMIT 1")
+        except sqlite3.OperationalError:
+            logger.info(f"Adding column '{column}' to table '{table}'")
+            if default is not None:
+                cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type} DEFAULT {default}")
+            else:
+                cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
     
     def save_portfolio(self, user_id: str, name: str, holdings: Dict[str, float]) -> None:
         """
@@ -148,12 +163,16 @@ class DatabaseManager:
             with self._get_cursor() as cursor:
                 # Check if portfolio exists
                 cursor.execute(
-                    'SELECT holdings FROM portfolios WHERE user_id = ? AND name = ?',
+                    'SELECT 1 FROM portfolios WHERE user_id = ? AND name = ?',
                     (user_id, name)
                 )
-                existing = cursor.fetchone()
-                
-                if existing:
+                existing_row = cursor.fetchone()
+
+                if existing_row:
+                    # Get old holdings for history
+                    cursor.execute('SELECT holdings FROM portfolios WHERE user_id = ? AND name = ?', (user_id, name))
+                    old_holdings_json = cursor.fetchone()[0]
+
                     # Update existing portfolio
                     cursor.execute('''
                         UPDATE portfolios 
@@ -166,7 +185,7 @@ class DatabaseManager:
                         INSERT INTO portfolio_history 
                         (user_id, portfolio_name, action, old_holdings, new_holdings)
                         VALUES (?, ?, ?, ?, ?)
-                    ''', (user_id, name, 'UPDATE', existing['holdings'], holdings_json))
+                    ''', (user_id, name, 'UPDATE', old_holdings_json, holdings_json))
                     
                     logger.info(f"Updated portfolio {name} for user {user_id}")
                 else:
@@ -185,7 +204,7 @@ class DatabaseManager:
                     
                     logger.info(f"Created portfolio {name} for user {user_id}")
                     
-        except json.JSONEncodeError as e:
+        except json.JSONDecodeError as e:
             logger.error(f"Failed to serialize holdings: {e}")
             raise ValidationError(f"Invalid holdings data: {e}") from e
         except Exception as e:

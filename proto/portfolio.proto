@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package portfolio;
+
+// Messages
+message Holdings {
+    map<string, double> shares = 1;  // symbol -> shares
+}
+
+message Portfolio {
+    string name = 1;
+    Holdings holdings = 2;
+    double total_value = 3;
+    map<string, double> weights = 4;
+}
+
+message StrategyParams {
+    map<string, string> params = 1;  // key-value for flexibility (e.g., "window": "20")
+}
+
+message StrategyResult {
+    map<string, double> new_weights = 1;
+    map<string, double> changes = 2;
+}
+
+message PriceHistory {
+    repeated string symbols = 1;
+    repeated double prices = 2;  // Flattened: len(prices) / len(symbols) rows per symbol
+}
+
+// Service
+service PortfolioService {
+    rpc CreatePortfolio(CreatePortfolioRequest) returns (Portfolio) {}
+    rpc LoadPortfolio(LoadPortfolioRequest) returns (Portfolio) {}
+    rpc RunStrategy(RunStrategyRequest) returns (StrategyResult) {}
+    rpc GetPriceHistory(GetPriceHistoryRequest) returns (PriceHistory) {}
+}
+
+message CreatePortfolioRequest {
+    string name = 1;
+    Holdings holdings = 2;
+}
+
+message LoadPortfolioRequest {
+    string name = 1;
+}
+
+message RunStrategyRequest {
+    string portfolio_name = 1;
+    string strategy_name = 2;
+    StrategyParams params = 3;
+}
+
+message GetPriceHistoryRequest {
+    string portfolio_name = 1;
+    string period = 2;
+}

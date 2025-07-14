@@ -26,3 +26,8 @@
 - **Caching**: Data service implements LRU cache with TTL
 - **Fallback Systems**: Mock data generation when external APIs fail
 - **Strategy Pattern**: Abstract base class for rebalancing strategies
+
+## Troubleshooting
+- **Database Schema Errors**: If you encounter `no such column` or other schema-related errors, the simplest fix is to delete the `portfolio.db` file and restart the application. The database will be recreated with the correct schema.
+- **`JSONEncodeError`**: This error indicates a problem with the data being saved to the database. Ensure that all data being saved is JSON serializable.
+- **`yfinance` errors**: If you see errors from `yfinance`, it's likely due to an invalid ticker symbol. The application will fall back to mock data in this case.

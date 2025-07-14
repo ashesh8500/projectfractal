@@ -1,0 +1,20 @@
+[package]
+name = "portfolio_frontend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+egui = "0.27.2"
+eframe = { version = "0.27.2", features = ["default_fonts", "persistence"] }
+egui_plot = "0.27.2"  # For charts
+tokio = { version = "1.38.0", features = ["full"] }
+tonic = { version = "0.11.0", features = ["transport"] }
+prost = "0.12.6"
+serde = { version = "1.0", features = ["derive"] }  # For egui persistence if needed
+rfd = "0.14.1"  # Optional: file dialogs if needed
+lazy_static = "1.4"
+futures = "0.3"
+futures-util = "0.3"
+
+[build-dependencies]
+tonic-build = "0.11.0"
