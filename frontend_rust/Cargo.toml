@@ -16,6 +16,7 @@ lazy_static = "1.4"
 futures = "0.3"
 futures-util = "0.3"
 rand = "0.8"
+chrono = { version = "0.4", features = ["serde"] }  # For date handling
 
 [build-dependencies]
 tonic-build = "0.11.0"
