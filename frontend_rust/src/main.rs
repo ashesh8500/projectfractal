@@ -8,6 +8,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::runtime::Runtime;
 use chrono::{DateTime, Utc, Duration, NaiveDate};
+use rand::Rng;
 
 // Generated from proto
 pub mod portfolio_pb {
@@ -236,9 +237,10 @@ impl PortfolioApp {
 
             // Generate realistic returns with some correlation and volatility
             let market_factor = 0.0003 + 0.001 * (i as f64 * 0.1).sin(); // Base market trend
+            let mut rng = rand::thread_rng();
             let portfolio_return = market_factor + 0.0005 * (i as f64 * 0.15).cos() + 
-                                 (rand::random::<f64>() - 0.5) * 0.02; // Add volatility
-            let benchmark_return = market_factor * 0.8 + (rand::random::<f64>() - 0.5) * 0.015;
+                                 (rng.gen::<f64>() - 0.5) * 0.02; // Add volatility
+            let benchmark_return = market_factor * 0.8 + (rng.gen::<f64>() - 0.5) * 0.015;
 
             portfolio_value *= 1.0 + portfolio_return;
             benchmark_value *= 1.0 + benchmark_return;
