@@ -1,262 +1,122 @@
-# Current Development Status - Portfolio Terminal Enhancement
+# Current Development Status - GCP Deployment
 
-**Date**: January 15, 2025  
-**Status**: In Progress - Backend Enhanced, Frontend Pending  
-**Priority**: High - Core Terminal Features
+**Date**: July 15, 2025
+**Status**: In Progress
+**Priority**: High - Deploy application to a public website on Google Cloud.
 
 ## 🎯 Project Intent
 
-Transform the current portfolio application into a sophisticated financial terminal with:
+The primary goal is to deploy the existing Python/Rust portfolio application on Google Cloud Platform (GCP) to make it accessible as a public website. The chosen architecture is a robust, scalable, and cost-effective setup using modern GCP services.
 
-1. **Professional Data Handling**: Multi-source data fetching with real-time fallbacks
-2. **Advanced Backtesting**: VectorBT-inspired comprehensive analysis with visualization
-3. **Terminal-Grade UI**: Real-time updates, professional charts, and interactive features
-4. **Enhanced Strategy Analysis**: Sophisticated risk metrics and performance tracking
+**Architecture Overview:**
+- **Backend (Python/gRPC):** Containerized and deployed on **Cloud Run**.
+- **Database (PostgreSQL):** Managed by **Cloud SQL**.
+- **Frontend (Rust/WASM):** Hosted as a static site on **Cloud Storage**.
+- **Routing & SSL:** Handled by a **Global External HTTPS Load Balancer** to route traffic to the appropriate service (Cloud Run for API, Cloud Storage for frontend).
+
+---
 
 ## ✅ Completed Work
 
-### Backend Enhancements (Python)
+### Backend Deployment (Python)
 
-#### 1. Enhanced Data Service (`data_service.py`)
-- **Multi-source data fetching**: yfinance → Alpha Vantage → mock fallback
-- **Improved caching**: Source tracking and TTL management
-- **Status reporting**: Real-time data source status for UI
-- **Error handling**: Graceful degradation with detailed logging
+1.  **Containerization (`Dockerfile`):**
+    - Created a `Dockerfile` to containerize the Python gRPC server.
+    - The container is based on the `python:3.9-slim` image.
 
-**Key Changes**:
-```python
-# New return format with source tracking
-def get_stock_data(symbols, period) -> Tuple[pd.DataFrame, str]
+2.  **Server & Database Adaptation:**
+    - Modified `server.py` to listen on the port specified by the `PORT` environment variable, as required by Cloud Run.
+    - Completely rewrote `database.py` to switch from SQLite to PostgreSQL.
+    - The new database logic connects securely to the Cloud SQL instance using the Cloud SQL Auth Proxy via a Unix socket, with credentials passed as environment variables.
+    - Added `psycopg2-binary` to `requirements_production.txt`.
 
-# Enhanced status reporting
-def get_data_source_status() -> Dict[str, any]
-```
+3.  **GCP Infrastructure Setup:**
+    - Set the active GCP project to `valuationappproject`.
+    - Enabled required APIs: Cloud Run, Cloud Build, Artifact Registry, and Cloud SQL.
+    - Created an Artifact Registry repository named `portfolio-backend`.
+    - Built the backend Docker image using Cloud Build and pushed it to the Artifact Registry.
+    - Deployed the container to a Cloud Run service named `portfolio-backend`.
+    - Created a Cloud SQL for PostgreSQL instance named `portfolio-db`.
+    - Created a database named `portfolio` and a user named `portfolio-user`.
+    - Securely connected the Cloud Run service to the Cloud SQL instance.
+    - Redeployed the Cloud Run service with the necessary database credentials as environment variables.
 
-#### 2. Advanced Backtesting (`backtesting.py`)
-- **Enhanced metrics**: Added Sortino ratio, VaR, Expected Shortfall
-- **Visualization methods**: Equity curve, drawdown plots, allocation timeline
-- **Monthly returns table**: Professional performance breakdown
-- **Comprehensive risk analysis**: Alpha, Beta, Calmar ratio
+### Frontend Preparation (Rust)
 
-**Key Additions**:
-```python
-# New visualization methods
-def plot_equity_curve()
-def plot_drawdown() 
-def plot_allocation_timeline()
-def get_monthly_returns()
-```
+1.  **Build Tooling:**
+    - Installed `trunk` as the build tool for compiling the Rust `egui` application to WebAssembly (WASM).
+    - Created a root `index.html` in `frontend_rust/` for `trunk` to use as an entry point.
 
-#### 3. Configuration Updates (`config.py`)
-- **Alpha Vantage integration**: API key support via environment variables
-- **Enhanced data config**: Request timeout and retry logic improvements
+2.  **Dependency Configuration (`Cargo.toml`):**
+    - Added `tonic-web-wasm-client` and `wasm-bindgen-futures` as dependencies for the `wasm32` target to enable gRPC-Web communication from the browser.
 
-#### 4. Requirements Updates
-- **Added requests**: For Alpha Vantage API calls
-- **Maintained compatibility**: All existing dependencies preserved
+---
 
-## 🚧 Current Status
+## 🚧 Current Status & Blockers
 
-### Backend: ✅ COMPLETE
-- Multi-source data fetching implemented
-- Enhanced backtesting with professional metrics
-- Comprehensive error handling and logging
-- Ready for frontend integration
+The project is part-way through configuring the Rust frontend for WASM compilation.
 
-### Frontend: ⏳ PENDING
-- **Streamlit**: Partially updated but deprecated per user request
-- **Rust Frontend**: Identified as primary target, not yet updated
+- **Backend:** ✅ Deployed and configured on Cloud Run, connected to Cloud SQL.
+- **Frontend:** ⏳ **IN PROGRESS**. The `main.rs` file needs to be correctly modified to support the WASM target.
+- **Blocker:** The process of modifying `main.rs` has been problematic, with accidental file overwrites. The file has been restored to its original state, and the correct, careful modifications are pending.
 
-## 🎯 Next Steps - Rust Frontend Enhancement
+---
 
-### Priority 1: Core Terminal Features
+## 🎯 Next Steps
 
-#### 1. Enhanced Data Visualization
-**File**: `frontend_rust/src/main.rs`
+The immediate next step is to correctly modify the frontend code and then proceed with the rest of the deployment.
 
-**Planned Changes**:
-```rust
-// Add sophisticated chart types
-enum ChartType {
-    Line,
-    Candlestick,
-    Volume,
-    Heatmap,
-    Correlation,
-}
+### Priority 1: Finalize Frontend WASM Build
 
-// Enhanced performance metrics display
-struct TerminalMetrics {
-    real_time_pnl: f64,
-    intraday_high: f64,
-    intraday_low: f64,
-    volume_profile: Vec<(f64, f64)>,
-    correlation_matrix: HashMap<String, HashMap<String, f64>>,
-}
-```
+1.  **Modify `main.rs` Correctly:**
+    - **Goal:** Adapt the Rust code to be compilable for both native and WASM targets without deleting or overwriting the file.
+    - **Action:**
+        1.  Add conditional `#[cfg]` attributes for platform-specific code (gRPC client, main entry point).
+        2.  Create a helper function `get_grpc_client()` that returns the correct gRPC client (native `Channel` or web `Client`) based on the target architecture.
+        3.  Update all gRPC call sites (`load_portfolio`, `run_strategy`, etc.) to use this helper function.
+        4.  Append the `main` functions for both native and `wasm32` targets to the end of the file.
 
-#### 2. Real-Time Data Integration
-**Implementation Plan**:
-- Connect to enhanced Python backend via gRPC
-- Display data source status (real vs mock)
-- Implement auto-refresh with configurable intervals
-- Add data quality indicators
+2.  **Build the WASM Artifacts:**
+    - **Goal:** Compile the frontend into a set of static web files.
+    - **Action:** Run `trunk build --release` from the `frontend_rust` directory. This will produce a `dist` directory containing the `index.html`, `.js`, and `.wasm` files.
 
-#### 3. Professional Chart Features
-**Target Features**:
-- **Candlestick charts**: OHLC visualization with volume
-- **Technical indicators**: Moving averages, Bollinger Bands, RSI
-- **Interactive features**: Zoom, pan, crosshairs, tooltips
-- **Multi-timeframe**: 1m, 5m, 1h, 1d, 1w, 1M views
-- **Overlay capabilities**: Multiple symbols, benchmarks
+### Priority 2: Deploy Frontend & Configure Networking
 
-#### 4. Advanced Backtesting UI
-**Components to Add**:
-```rust
-struct BacktestPanel {
-    strategy_selector: Vec<String>,
-    parameter_grid: HashMap<String, f64>,
-    results_table: BacktestResults,
-    equity_curve: PlotPoints,
-    drawdown_chart: PlotPoints,
-    monthly_returns_heatmap: Vec<Vec<f64>>,
-}
-```
+1.  **Create Cloud Storage Bucket:**
+    - **Goal:** Create a bucket to host the static frontend files.
+    - **Action:** Use `gcloud storage buckets create` with the `--website-main-page-suffix` and `--website-404-page` flags.
 
-### Priority 2: Terminal-Grade Features
+2.  **Upload Frontend Files:**
+    - **Goal:** Copy the built WASM app to the storage bucket.
+    - **Action:** Use `gcloud storage cp -r frontend_rust/dist/* gs://<your-bucket-name>`.
 
-#### 1. Multi-Window Layout
-- **Portfolio Dashboard**: Real-time P&L, positions, alerts
-- **Strategy Analyzer**: Parameter optimization, sensitivity analysis
-- **Risk Dashboard**: VaR, correlation matrix, exposure analysis
-- **Backtest Results**: Comprehensive performance analytics
+3.  **Set up Load Balancer:**
+    - **Goal:** Create a single public entry point for the application with SSL.
+    - **Action:**
+        1.  Reserve a static global IP address.
+        2.  Create a **backend bucket** pointing to the Cloud Storage bucket.
+        3.  Create a **backend service** pointing to the Cloud Run service.
+        4.  Configure URL map rules to route `/grpc/*` to the Cloud Run backend and all other traffic (`/*`) to the Cloud Storage frontend.
+        5.  Create a Google-managed SSL certificate for your domain.
+        6.  Create the HTTPS target proxy and forwarding rule.
 
-#### 2. Keyboard Shortcuts
-```rust
-// Planned shortcuts
-// Ctrl+R: Refresh data
-// Ctrl+B: Run backtest
-// Ctrl+S: Save portfolio
-// F1-F12: Switch between windows
-// Esc: Close current window
-```
+### Priority 3: Finalize and Test
 
-#### 3. Real-Time Updates
-- **WebSocket integration**: For live price feeds (future)
-- **Auto-refresh**: Configurable intervals (30s, 1m, 5m)
-- **Status indicators**: Connection status, data freshness
-- **Alert system**: Price alerts, strategy signals
+1.  **Update DNS:**
+    - **Goal:** Point your custom domain to the load balancer.
+    - **Action:** Update the A record for your domain to the static IP address of the load balancer.
 
-### Priority 3: Professional Polish
+2.  **End-to-End Testing:**
+    - **Goal:** Ensure the entire application is working correctly.
+    - **Action:** Access the website via your domain and test all functionality, ensuring the frontend successfully communicates with the backend.
 
-#### 1. Theme System
-```rust
-enum TerminalTheme {
-    Dark,      // Professional dark theme
-    Light,     // Clean light theme  
-    Bloomberg, // Bloomberg terminal inspired
-    Custom,    // User customizable
-}
-```
-
-#### 2. Export Capabilities
-- **CSV export**: Portfolio data, backtest results
-- **PDF reports**: Professional performance reports
-- **Image export**: Chart screenshots
-- **Data backup**: Portfolio configurations
-
-#### 3. Performance Optimization
-- **Efficient rendering**: Only update changed components
-- **Data streaming**: Incremental updates vs full refresh
-- **Memory management**: Proper cleanup of historical data
-- **Async operations**: Non-blocking UI during data fetches
-
-## 📋 Implementation Checklist
-
-### Phase 1: Core Infrastructure (Week 1)
-- [ ] Update `PortfolioApp` struct with new fields
-- [ ] Implement data source status display
-- [ ] Add real-time refresh mechanism
-- [ ] Integrate with enhanced Python backend
-
-### Phase 2: Chart Enhancements (Week 2)
-- [ ] Implement candlestick charts
-- [ ] Add technical indicators
-- [ ] Create interactive features (zoom, pan)
-- [ ] Add multi-symbol support
-
-### Phase 3: Backtesting Integration (Week 3)
-- [ ] Connect to enhanced backtesting module
-- [ ] Create comprehensive results display
-- [ ] Add parameter optimization UI
-- [ ] Implement performance visualization
-
-### Phase 4: Professional Features (Week 4)
-- [ ] Multi-window layout system
-- [ ] Keyboard shortcuts
-- [ ] Export capabilities
-- [ ] Theme system
-- [ ] Performance optimization
-
-## 🔧 Technical Architecture
-
-### Data Flow
-```
-Python Backend (Enhanced) 
-    ↓ gRPC
-Rust Frontend (To Update)
-    ↓ egui/egui_plot
-Professional Terminal UI
-```
-
-### Key Dependencies
-- **egui**: UI framework (already included)
-- **egui_plot**: Chart rendering (already included)
-- **tonic**: gRPC client (already included)
-- **chrono**: Date/time handling (already included)
-
-### File Structure
-```
-frontend_rust/src/
-├── main.rs              # Main application (to enhance)
-├── charts/              # Chart components (to create)
-│   ├── candlestick.rs
-│   ├── technical_indicators.rs
-│   └── correlation_matrix.rs
-├── windows/             # Window components (to create)
-│   ├── dashboard.rs
-│   ├── backtest.rs
-│   └── risk_analysis.rs
-└── utils/               # Utilities (to create)
-    ├── themes.rs
-    ├── shortcuts.rs
-    └── export.rs
-```
-
-## 🚨 Critical Notes
-
-1. **Backend Ready**: All Python enhancements are complete and tested
-2. **Frontend Target**: Focus exclusively on Rust frontend (Streamlit deprecated)
-3. **Data Integration**: Backend returns `(DataFrame, source_name)` - frontend must handle this
-4. **Performance**: Use async operations for all gRPC calls to prevent UI blocking
-5. **Error Handling**: Implement graceful fallbacks when backend is unavailable
+---
 
 ## 📞 Next Session Goals
 
 When resuming development:
 
-1. **Start with**: `frontend_rust/src/main.rs` enhancement
-2. **First task**: Update `PortfolioApp` struct with new fields
-3. **Priority**: Data source status display and real-time refresh
-4. **Test with**: Enhanced Python backend (already functional)
-
-## 🔗 Related Files
-
-- **Backend**: `data_service.py`, `backtesting.py`, `config.py` (✅ Complete)
-- **Frontend**: `frontend_rust/src/main.rs` (⏳ Pending)
-- **Proto**: `proto/portfolio.proto` (may need updates for new features)
-- **Config**: `requirements_production.txt` (✅ Updated)
-
----
-
-**Status Summary**: Backend infrastructure complete and ready. Rust frontend enhancement is the critical path to delivering a professional financial terminal experience.
+1.  **Start with**: `frontend_rust/src/main.rs`.
+2.  **First task**: Carefully apply the required modifications for WASM compilation as outlined in "Priority 1" above, ensuring no file content is destroyed.
+3.  **Priority**: Successfully build the WASM application using `trunk`.
+4.  **Test with**: The deployed Python backend on Cloud Run.
