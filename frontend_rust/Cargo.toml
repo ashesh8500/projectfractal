@@ -8,7 +8,7 @@ egui = "0.27.2"
 eframe = { version = "0.27.2", features = ["default_fonts", "persistence"] }
 egui_plot = "0.27.2"  # For charts
 tokio = { version = "1.38.0", features = ["full"] }
-tonic = { version = "0.11.0", features = ["transport"] }
+tonic = { version = "0.11.0", features = ["transport", "codegen"] }
 prost = "0.12.6"
 serde = { version = "1.0", features = ["derive"] }  # For egui persistence if needed
 rfd = "0.14.1"  # Optional: file dialogs if needed
@@ -17,6 +17,13 @@ futures = "0.3"
 futures-util = "0.3"
 rand = "0.8"
 chrono = { version = "0.4", features = ["serde"] }  # For date handling
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# Native-only dependencies here
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-futures = "0.4"
+tonic-web-wasm-client = "0.11.0"
 
 [build-dependencies]
 tonic-build = "0.11.0"

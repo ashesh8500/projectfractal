@@ -401,13 +401,16 @@ class PortfolioServicer(portfolio_pb2_grpc.PortfolioServiceServicer):
             logger.error(f"Traceback: {traceback.format_exc()}")
             context.abort(grpc.StatusCode.INTERNAL, f"Backtest execution failed: {str(e)}")
 
+import os
+
 def serve():
     """Start the gRPC server."""
+    port = os.environ.get('PORT', '50051')
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     portfolio_pb2_grpc.add_PortfolioServiceServicer_to_server(PortfolioServicer(), server)
-    server.add_insecure_port('[::]:50051')
+    server.add_insecure_port(f'[::]:{port}')
     server.start()
-    logger.info("gRPC server started on port 50051")
+    logger.info(f"gRPC server started on port {port}")
     
     try:
         server.wait_for_termination()
