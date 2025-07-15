@@ -156,3 +156,4 @@ cython_debug/
 portfolio.db
 portfolio_app.log
 .opencode/
+.aider*

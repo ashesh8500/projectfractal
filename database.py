@@ -251,9 +251,42 @@ class DatabaseManager:
             logger.error(f"Failed to load portfolio: {e}")
             raise DatabaseError(f"Portfolio load failed: {e}") from e
     
-    def list_portfolios(self, user_id: str) -> List[Dict[str, Any]]:
+    def list_portfolios(self, user_id: str) -> List[str]:
         """
-        List all portfolios for a user.
+        List all portfolio names for a user.
+        
+        Args:
+            user_id: User identifier
+            
+        Returns:
+            List of portfolio names
+            
+        Raises:
+            DatabaseError: If operation fails
+        """
+        self._validate_user_id(user_id)
+        
+        try:
+            with self._get_cursor() as cursor:
+                cursor.execute('''
+                    SELECT name 
+                    FROM portfolios 
+                    WHERE user_id = ? 
+                    ORDER BY updated_at DESC
+                ''', (user_id,))
+                
+                portfolios = [row['name'] for row in cursor.fetchall()]
+                
+                logger.debug(f"Listed {len(portfolios)} portfolios for user {user_id}")
+                return portfolios
+                
+        except Exception as e:
+            logger.error(f"Failed to list portfolios: {e}")
+            raise DatabaseError(f"Portfolio listing failed: {e}") from e
+    
+    def list_portfolios_detailed(self, user_id: str) -> List[Dict[str, Any]]:
+        """
+        List all portfolios for a user with detailed information.
         
         Args:
             user_id: User identifier

@@ -31,3 +31,8 @@ class ValidationError(PortfolioError):
 class ConfigurationError(PortfolioError):
     """Raised when configuration is invalid."""
     pass
+
+
+class AuthenticationError(PortfolioError):
+    """Raised when authentication fails."""
+    pass

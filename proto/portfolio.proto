@@ -12,6 +12,7 @@ message Portfolio {
     Holdings holdings = 2;
     double total_value = 3;
     map<string, double> weights = 4;
+    bool is_using_mock_data = 5;
 }
 
 message StrategyParams {
@@ -21,37 +22,134 @@ message StrategyParams {
 message StrategyResult {
     map<string, double> new_weights = 1;
     map<string, double> changes = 2;
+    bool is_using_mock_data = 3;
 }
 
 message PriceHistory {
     repeated string symbols = 1;
     repeated double prices = 2;  // Flattened: len(prices) / len(symbols) rows per symbol
+    bool is_using_mock_data = 3;
+}
+
+message User {
+    string user_id = 1;
+    string username = 2;
+    string email = 3;
+    string created_at = 4;
+}
+
+message AuthRequest {
+    string username = 1;
+    string password = 2;
+}
+
+message AuthResponse {
+    bool success = 1;
+    string message = 2;
+    User user = 3;
+    string session_token = 4;
+}
+
+message ListPortfoliosRequest {
+    string user_id = 1;
+}
+
+message ListPortfoliosResponse {
+    repeated string portfolio_names = 1;
 }
 
 // Service
 service PortfolioService {
+    rpc Authenticate(AuthRequest) returns (AuthResponse) {}
     rpc CreatePortfolio(CreatePortfolioRequest) returns (Portfolio) {}
     rpc LoadPortfolio(LoadPortfolioRequest) returns (Portfolio) {}
+    rpc ListPortfolios(ListPortfoliosRequest) returns (ListPortfoliosResponse) {}
     rpc RunStrategy(RunStrategyRequest) returns (StrategyResult) {}
     rpc GetPriceHistory(GetPriceHistoryRequest) returns (PriceHistory) {}
+    rpc RunBacktest(BacktestRequest) returns (BacktestResult) {}
 }
 
 message CreatePortfolioRequest {
-    string name = 1;
-    Holdings holdings = 2;
+    string user_id = 1;
+    string name = 2;
+    Holdings holdings = 3;
 }
 
 message LoadPortfolioRequest {
-    string name = 1;
+    string user_id = 1;
+    string name = 2;
 }
 
 message RunStrategyRequest {
-    string portfolio_name = 1;
-    string strategy_name = 2;
-    StrategyParams params = 3;
+    string user_id = 1;
+    string portfolio_name = 2;
+    string strategy_name = 3;
+    StrategyParams params = 4;
 }
 
 message GetPriceHistoryRequest {
-    string portfolio_name = 1;
-    string period = 2;
+    string user_id = 1;
+    string portfolio_name = 2;
+    string period = 3;
+}
+
+message BacktestRequest {
+    string user_id = 1;
+    string portfolio_name = 2;
+    string strategy_name = 3;
+    StrategyParams params = 4;
+    string rebalance_frequency = 5; // 'D', 'W', 'M', 'Q'
+    double start_value = 6;
+    double transaction_cost = 7;
+}
+
+message BacktestResult {
+    // Period info
+    string start_date = 1;
+    string end_date = 2;
+    int32 period_days = 3;
+    
+    // Performance metrics
+    double start_value = 4;
+    double end_value = 5;
+    double total_return_pct = 6;
+    double benchmark_return_pct = 7;
+    double max_gross_exposure_pct = 8;
+    double total_fees_paid = 9;
+    
+    // Drawdown analysis
+    double max_drawdown_pct = 10;
+    int32 max_drawdown_duration_days = 11;
+    
+    // Trade analysis
+    int32 total_trades = 12;
+    int32 total_closed_trades = 13;
+    int32 total_open_trades = 14;
+    double open_trade_pnl = 15;
+    double win_rate_pct = 16;
+    double best_trade_pct = 17;
+    double worst_trade_pct = 18;
+    double avg_winning_trade_pct = 19;
+    double avg_losing_trade_pct = 20;
+    int32 avg_winning_trade_duration_days = 21;
+    int32 avg_losing_trade_duration_days = 22;
+    double profit_factor = 23;
+    double expectancy = 24;
+    
+    // Risk metrics
+    double sharpe_ratio = 25;
+    double calmar_ratio = 26;
+    double omega_ratio = 27;
+    double sortino_ratio = 28;
+    
+    // Allocation data for visualization
+    repeated string allocation_dates = 29;
+    repeated AllocationSnapshot allocations = 30;
+    
+    bool is_using_mock_data = 31;
+}
+
+message AllocationSnapshot {
+    string date = 1;
+    map<string, double> weights = 2;
 }

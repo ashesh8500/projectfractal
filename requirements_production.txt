@@ -4,9 +4,13 @@
 # Core dependencies
 streamlit>=1.28.0
 pandas>=2.0.0
-numpy>=1.24.0
+numpy<2.0.0  # Fixed compatibility issue with yfinance
 yfinance>=0.2.0
 scikit-learn>=1.3.0
+
+# gRPC dependencies for server
+grpcio>=1.60.0
+grpcio-tools>=1.60.0
 
 # Visualization
 plotly>=5.15.0

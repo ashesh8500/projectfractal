@@ -33,6 +33,7 @@ class PortfolioManager:
         self.symbols = list(holdings.keys())
         self.prices: Optional[pd.DataFrame] = None
         self.current_prices: Optional[pd.Series] = None
+        self.is_using_mock_data = False
         
         logger.info(f"Initialized portfolio with {len(self.symbols)} symbols: {self.symbols}")
         
@@ -62,12 +63,13 @@ class PortfolioManager:
             logger.debug(f"Fetching price data for {len(self.symbols)} symbols")
             
             # Get historical data
-            self.prices = get_stock_data(self.symbols, period)
+            self.prices, self.is_using_mock_data = get_stock_data(self.symbols, period)
             
             # Get current prices (last available price)
             self.current_prices = self.prices.iloc[-1].copy()
             
-            logger.info(f"Successfully loaded {len(self.prices)} days of price data")
+            data_type = "MOCK" if self.is_using_mock_data else "REAL"
+            logger.info(f"Successfully loaded {len(self.prices)} days of {data_type} price data")
             
         except Exception as e:
             logger.error(f"Failed to fetch price data: {e}")
@@ -250,7 +252,8 @@ class PortfolioManager:
                 'weights': weights,
                 'position_values': position_values,
                 'largest_position': max(weights.items(), key=lambda x: x[1]) if weights else None,
-                'data_last_updated': datetime.now().isoformat()
+                'data_last_updated': datetime.now().isoformat(),
+                'is_using_mock_data': self.is_using_mock_data
             }
             
         except Exception as e:

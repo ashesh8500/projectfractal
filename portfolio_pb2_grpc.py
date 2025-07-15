@@ -35,6 +35,11 @@ class PortfolioServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
+        self.Authenticate = channel.unary_unary(
+                '/portfolio.PortfolioService/Authenticate',
+                request_serializer=portfolio__pb2.AuthRequest.SerializeToString,
+                response_deserializer=portfolio__pb2.AuthResponse.FromString,
+                _registered_method=True)
         self.CreatePortfolio = channel.unary_unary(
                 '/portfolio.PortfolioService/CreatePortfolio',
                 request_serializer=portfolio__pb2.CreatePortfolioRequest.SerializeToString,
@@ -44,6 +49,11 @@ class PortfolioServiceStub(object):
                 '/portfolio.PortfolioService/LoadPortfolio',
                 request_serializer=portfolio__pb2.LoadPortfolioRequest.SerializeToString,
                 response_deserializer=portfolio__pb2.Portfolio.FromString,
+                _registered_method=True)
+        self.ListPortfolios = channel.unary_unary(
+                '/portfolio.PortfolioService/ListPortfolios',
+                request_serializer=portfolio__pb2.ListPortfoliosRequest.SerializeToString,
+                response_deserializer=portfolio__pb2.ListPortfoliosResponse.FromString,
                 _registered_method=True)
         self.RunStrategy = channel.unary_unary(
                 '/portfolio.PortfolioService/RunStrategy',
@@ -55,11 +65,22 @@ class PortfolioServiceStub(object):
                 request_serializer=portfolio__pb2.GetPriceHistoryRequest.SerializeToString,
                 response_deserializer=portfolio__pb2.PriceHistory.FromString,
                 _registered_method=True)
+        self.RunBacktest = channel.unary_unary(
+                '/portfolio.PortfolioService/RunBacktest',
+                request_serializer=portfolio__pb2.BacktestRequest.SerializeToString,
+                response_deserializer=portfolio__pb2.BacktestResult.FromString,
+                _registered_method=True)
 
 
 class PortfolioServiceServicer(object):
     """Service
     """
+
+    def Authenticate(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def CreatePortfolio(self, request, context):
         """Missing associated documentation comment in .proto file."""
@@ -68,6 +89,12 @@ class PortfolioServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def LoadPortfolio(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListPortfolios(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -85,9 +112,20 @@ class PortfolioServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def RunBacktest(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_PortfolioServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'Authenticate': grpc.unary_unary_rpc_method_handler(
+                    servicer.Authenticate,
+                    request_deserializer=portfolio__pb2.AuthRequest.FromString,
+                    response_serializer=portfolio__pb2.AuthResponse.SerializeToString,
+            ),
             'CreatePortfolio': grpc.unary_unary_rpc_method_handler(
                     servicer.CreatePortfolio,
                     request_deserializer=portfolio__pb2.CreatePortfolioRequest.FromString,
@@ -98,6 +136,11 @@ def add_PortfolioServiceServicer_to_server(servicer, server):
                     request_deserializer=portfolio__pb2.LoadPortfolioRequest.FromString,
                     response_serializer=portfolio__pb2.Portfolio.SerializeToString,
             ),
+            'ListPortfolios': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListPortfolios,
+                    request_deserializer=portfolio__pb2.ListPortfoliosRequest.FromString,
+                    response_serializer=portfolio__pb2.ListPortfoliosResponse.SerializeToString,
+            ),
             'RunStrategy': grpc.unary_unary_rpc_method_handler(
                     servicer.RunStrategy,
                     request_deserializer=portfolio__pb2.RunStrategyRequest.FromString,
@@ -107,6 +150,11 @@ def add_PortfolioServiceServicer_to_server(servicer, server):
                     servicer.GetPriceHistory,
                     request_deserializer=portfolio__pb2.GetPriceHistoryRequest.FromString,
                     response_serializer=portfolio__pb2.PriceHistory.SerializeToString,
+            ),
+            'RunBacktest': grpc.unary_unary_rpc_method_handler(
+                    servicer.RunBacktest,
+                    request_deserializer=portfolio__pb2.BacktestRequest.FromString,
+                    response_serializer=portfolio__pb2.BacktestResult.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -119,6 +167,33 @@ def add_PortfolioServiceServicer_to_server(servicer, server):
 class PortfolioService(object):
     """Service
     """
+
+    @staticmethod
+    def Authenticate(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/portfolio.PortfolioService/Authenticate',
+            portfolio__pb2.AuthRequest.SerializeToString,
+            portfolio__pb2.AuthResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def CreatePortfolio(request,
@@ -175,6 +250,33 @@ class PortfolioService(object):
             _registered_method=True)
 
     @staticmethod
+    def ListPortfolios(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/portfolio.PortfolioService/ListPortfolios',
+            portfolio__pb2.ListPortfoliosRequest.SerializeToString,
+            portfolio__pb2.ListPortfoliosResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
     def RunStrategy(request,
             target,
             options=(),
@@ -218,6 +320,33 @@ class PortfolioService(object):
             '/portfolio.PortfolioService/GetPriceHistory',
             portfolio__pb2.GetPriceHistoryRequest.SerializeToString,
             portfolio__pb2.PriceHistory.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RunBacktest(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/portfolio.PortfolioService/RunBacktest',
+            portfolio__pb2.BacktestRequest.SerializeToString,
+            portfolio__pb2.BacktestResult.FromString,
             options,
             channel_credentials,
             insecure,

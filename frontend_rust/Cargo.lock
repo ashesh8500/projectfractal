@@ -2850,6 +2850,7 @@ dependencies = [
  "futures-util",
  "lazy_static",
  "prost",
+ "rand",
  "rfd",
  "serde",
  "tokio",
