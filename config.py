@@ -22,6 +22,7 @@ class DataConfig:
     max_retries: int = 3
     retry_delay: float = 1.0
     request_timeout: int = 30
+    alpha_vantage_key: str = ""  # Set via environment variable
 
 
 @dataclass
@@ -66,7 +67,8 @@ class AppConfig:
                 cache_timeout=int(os.getenv('CACHE_TIMEOUT', '300')),
                 max_retries=int(os.getenv('MAX_RETRIES', '3')),
                 retry_delay=float(os.getenv('RETRY_DELAY', '1.0')),
-                request_timeout=int(os.getenv('REQUEST_TIMEOUT', '30'))
+                request_timeout=int(os.getenv('REQUEST_TIMEOUT', '30')),
+                alpha_vantage_key=os.getenv('ALPHA_VANTAGE_API_KEY', '')
             ),
             strategy=StrategyConfig(
                 min_weight=float(os.getenv('MIN_WEIGHT', '0.05')),

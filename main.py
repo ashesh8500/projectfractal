@@ -18,6 +18,8 @@ from portfolio_manager import PortfolioManager
 from strategies import get_strategy, STRATEGIES, BaseStrategy
 from database import db_manager
 from exceptions import PortfolioError, DataFetchError, StrategyError, ValidationError
+from data_service import get_data_source_status
+from backtesting import PortfolioBacktester
 
 # Setup logging
 logger = setup_logging()
@@ -208,6 +210,41 @@ class PortfolioApp:
         
         if st.sidebar.button("Run Strategy"):
             self.run_strategy(strategy_name, strategy_params)
+        
+        # Data source status
+        self.render_data_source_status()
+    
+    def render_data_source_status(self):
+        """Render data source status in sidebar."""
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("📡 Data Source Status")
+        
+        try:
+            status = get_data_source_status()
+            
+            # Show current source with appropriate color
+            if status["is_mock"]:
+                st.sidebar.error(f"🔴 Using Mock Data")
+                st.sidebar.caption("Real data unavailable - using simulated data")
+            else:
+                source_name = status["current_source"].title()
+                st.sidebar.success(f"🟢 {source_name}")
+                st.sidebar.caption("Real market data")
+            
+            # Show cache info
+            st.sidebar.caption(f"Cache: {status['cache_size']} entries")
+            
+            # Refresh button
+            if st.sidebar.button("🔄 Refresh Data", help="Clear cache and fetch fresh data"):
+                from data_service import data_service
+                data_service.clear_cache()
+                if st.session_state.portfolio_manager:
+                    st.session_state.portfolio_manager._fetch_prices()
+                st.experimental_rerun()
+                
+        except Exception as e:
+            st.sidebar.error("❌ Data source status unavailable")
+            logger.error(f"Error getting data source status: {e}")
     
     def render_welcome_page(self):
         """Render welcome page when no portfolio is loaded."""

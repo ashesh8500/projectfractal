@@ -28,8 +28,9 @@ class TestDataService(unittest.TestCase):
     def test_single_symbol_fetch(self):
         """Test fetching data for a single symbol."""
         try:
-            data = self.data_service.get_stock_data("AAPL", "1y")
+            data, source = self.data_service.get_stock_data("AAPL", "1y")
             self.assertIsInstance(data, pd.DataFrame)
+            self.assertIsInstance(source, str)
             self.assertIn("AAPL", data.columns)
             self.assertGreater(len(data), 100)  # Should have reasonable amount of data
         except DataFetchError:
@@ -42,8 +43,9 @@ class TestDataService(unittest.TestCase):
         """Test fetching data for multiple symbols."""
         symbols = ["AAPL", "MSFT"]
         try:
-            data = self.data_service.get_stock_data(symbols, "1y")
+            data, source = self.data_service.get_stock_data(symbols, "1y")
             self.assertIsInstance(data, pd.DataFrame)
+            self.assertIsInstance(source, str)
             for symbol in symbols:
                 self.assertIn(symbol, data.columns)
         except DataFetchError:
@@ -66,15 +68,16 @@ class TestDataService(unittest.TestCase):
             mock_fetch.return_value = mock_data
             
             # First call should fetch
-            data1 = self.data_service.get_stock_data("AAPL", "1y")
+            data1, source1 = self.data_service.get_stock_data("AAPL", "1y")
             self.assertEqual(mock_fetch.call_count, 1)
-            
+
             # Second call should use cache
-            data2 = self.data_service.get_stock_data("AAPL", "1y")
+            data2, source2 = self.data_service.get_stock_data("AAPL", "1y")
             self.assertEqual(mock_fetch.call_count, 1)  # Still 1, not 2
-            
+
             # Data should be identical
             pd.testing.assert_frame_equal(data1, data2)
+            self.assertEqual(source1, source2)
     
     def test_fallback_data_generation(self):
         """Test fallback data generation."""
@@ -115,7 +118,7 @@ class TestPortfolioManager(unittest.TestCase):
                 'AAPL': [150, 151, 152, 153, 154],
                 'MSFT': [300, 301, 302, 303, 304]
             }, index=pd.date_range('2023-01-01', periods=5))
-            mock_get_data.return_value = mock_data
+            mock_get_data.return_value = (mock_data, "mock")
             
             self.portfolio = PortfolioManager(self.test_holdings)
     
@@ -161,7 +164,7 @@ class TestPortfolioManager(unittest.TestCase):
                 'MSFT': [300, 301, 302, 303, 304],
                 'GOOGL': [2500, 2510, 2520, 2530, 2540]
             }, index=pd.date_range('2023-01-01', periods=5))
-            mock_get_data.return_value = mock_data
+            mock_get_data.return_value = (mock_data, "mock")
             
             self.portfolio.add_position('GOOGL', 10)
             
@@ -315,10 +318,9 @@ class TestDatabaseManager(unittest.TestCase):
         self.db_manager.save_portfolio(self.test_user_id, "portfolio2", {"GOOGL": 25.0})
         
         # List portfolios
-        portfolios = self.db_manager.list_portfolios(self.test_user_id)
+        portfolio_names = self.db_manager.list_portfolios(self.test_user_id)
         
-        self.assertEqual(len(portfolios), 2)
-        portfolio_names = [p['name'] for p in portfolios]
+        self.assertEqual(len(portfolio_names), 2)
         self.assertIn("portfolio1", portfolio_names)
         self.assertIn("portfolio2", portfolio_names)
     

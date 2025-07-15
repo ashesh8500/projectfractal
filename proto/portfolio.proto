@@ -29,6 +29,7 @@ message PriceHistory {
     repeated string symbols = 1;
     repeated double prices = 2;  // Flattened: len(prices) / len(symbols) rows per symbol
     bool is_using_mock_data = 3;
+    repeated int64 timestamps = 4;
 }
 
 message User {
