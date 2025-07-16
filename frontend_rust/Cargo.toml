@@ -22,8 +22,20 @@ chrono = { version = "0.4", features = ["serde"] }  # For date handling
 # Native-only dependencies here
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 tonic-web-wasm-client = "0.11.0"
+console_error_panic_hook = "0.1.7"
+tracing-wasm = "0.2.1"
+web-sys = { version = "0.3", features = [
+    "Document",
+    "Window",
+    "Element",
+    "HtmlCanvasElement",
+    "Performance",
+    "PerformanceTiming",
+    "console"
+]}
 
 [build-dependencies]
 tonic-build = "0.11.0"
