@@ -116,10 +116,24 @@ The immediate next step is to build the WASM frontend and deploy it to GCP.
 
 When resuming development:
 
-1.  **Start with**: Running the `./frontend_rust/build_wasm.sh` script to build the WASM application.
-2.  **First task**: Test the WASM build locally to ensure it works correctly.
+1.  **Start with**: Using the WASM test project in `./frontend_rust/wasm_test/` as a reference for WASM compatibility.
+2.  **First task**: Update the main application to use the same WASM-compatible approach.
 3.  **Priority**: Deploy the frontend to GCP Cloud Storage using the `./deploy_to_gcp.sh` script.
 4.  **Test with**: The deployed Python backend on Cloud Run.
+
+### WASM Compatibility Progress
+
+We've made significant progress in understanding the WASM compatibility requirements:
+
+1. **Identified the key issues**: The main challenge is that `tokio` and `mio` libraries don't fully support WASM.
+2. **Created a test project**: A simple WASM test project in `./frontend_rust/wasm_test/` demonstrates WASM functionality.
+3. **Developed a build strategy**: Created a custom build script that generates a WASM-compatible version.
+4. **Documented the approach**: Created a comprehensive guide in `WASM_COMPATIBILITY_GUIDE.md`.
+
+The next step is to apply these learnings to the main application, focusing on:
+- Removing or limiting tokio dependencies for WASM
+- Using browser APIs for async operations
+- Implementing conditional compilation for platform-specific code
 
 ## 📋 Enhanced Features Added
 
