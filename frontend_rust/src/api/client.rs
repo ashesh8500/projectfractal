@@ -22,8 +22,17 @@ pub async fn get_grpc_client() -> Result<PortfolioServiceClient<Channel>, tonic:
 
 #[cfg(target_arch = "wasm32")]
 pub async fn get_grpc_client() -> Result<PortfolioServiceClient<Client>, tonic::transport::Error> {
-    // For WASM, we use the deployed backend URL from GCP Cloud Run
-    let client = Client::new("https://portfolio-backend-abcdefghij-uc.a.run.app");
+    use crate::utils::wasm::get_url_param;
+    
+    // Try to get backend URL from URL parameters
+    let backend_url = get_url_param("backend")
+        .unwrap_or_else(|| {
+            // Default backend URL for GCP deployment
+            "https://portfolio-backend-abcdefghij-uc.a.run.app".to_string()
+        });
+    
+    crate::console_log!("Connecting to backend at: {}", backend_url);
+    let client = Client::new(&backend_url);
     Ok(PortfolioServiceClient::new(client))
 }
 

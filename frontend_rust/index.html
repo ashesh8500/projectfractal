@@ -1,67 +1,199 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Portfolio Optimizer Pro - Advanced financial portfolio optimization and analysis tool">
     <title>Portfolio Optimizer Pro - Advanced</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📈</text></svg>">
     <style>
+        :root {
+            --bg-color: #1e1e28;
+            --text-color: #aaa;
+            --accent-color: rgba(100, 150, 255, 1);
+            --accent-color-light: rgba(100, 150, 255, 0.3);
+            --error-color: #ff5555;
+        }
+        
         html, body {
             margin: 0;
             padding: 0;
             height: 100%;
             width: 100%;
             overflow: hidden;
-            background-color: #1e1e28;
+            background-color: var(--bg-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
+        
         canvas {
             display: block;
             outline: none;
             width: 100% !important;
             height: 100% !important;
         }
+        
         .loading {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 100%;
-            color: #aaa;
-            font-family: Arial, sans-serif;
+            color: var(--text-color);
         }
+        
         .spinner {
             width: 50px;
             height: 50px;
-            border: 5px solid rgba(100, 150, 255, 0.3);
+            border: 5px solid var(--accent-color-light);
             border-radius: 50%;
-            border-top-color: rgba(100, 150, 255, 1);
+            border-top-color: var(--accent-color);
             animation: spin 1s ease-in-out infinite;
             margin-bottom: 20px;
         }
+        
         @keyframes spin {
             to { transform: rotate(360deg); }
+        }
+        
+        .app-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .loading-text {
+            font-size: 16px;
+        }
+        
+        .progress-bar {
+            width: 300px;
+            height: 10px;
+            background-color: var(--accent-color-light);
+            border-radius: 5px;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+        
+        .progress-bar-fill {
+            height: 100%;
+            background-color: var(--accent-color);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .error-container {
+            color: var(--error-color);
+            text-align: center;
+            max-width: 600px;
+            padding: 20px;
+        }
+        
+        .retry-button {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+            font-size: 16px;
+        }
+        
+        .retry-button:hover {
+            background-color: rgba(120, 170, 255, 1);
+        }
+        
+        /* For mobile devices */
+        @media (max-width: 768px) {
+            .app-title {
+                font-size: 20px;
+            }
+            
+            .progress-bar {
+                width: 80%;
+                max-width: 300px;
+            }
         }
     </style>
 </head>
 <body>
     <div id="portfolio_app_canvas" class="loading">
         <div class="spinner"></div>
-        <div>Loading Portfolio Optimizer Pro...</div>
+        <div class="app-title">Portfolio Optimizer Pro</div>
+        <div class="loading-text">Loading application...</div>
+        <div class="progress-bar">
+            <div id="progress-fill" class="progress-bar-fill"></div>
+        </div>
     </div>
+    
     <script>
-        // This will be replaced by trunk with the actual path to the JS file
+        // Track loading progress
+        let progressValue = 0;
+        const progressFill = document.getElementById('progress-fill');
+        const loadingText = document.querySelector('.loading-text');
+        
+        function updateProgress(value, text) {
+            progressValue = value;
+            progressFill.style.width = `${value}%`;
+            if (text) {
+                loadingText.textContent = text;
+            }
+        }
+        
+        // Simulate initial loading progress
+        let progressInterval = setInterval(() => {
+            if (progressValue < 70) {
+                updateProgress(progressValue + 1, 'Loading application...');
+            } else {
+                clearInterval(progressInterval);
+            }
+        }, 50);
+        
+        // Handle errors
+        function showError(message) {
+            const container = document.getElementById('portfolio_app_canvas');
+            container.innerHTML = `
+                <div class="error-container">
+                    <h2>Error Loading Application</h2>
+                    <p>${message}</p>
+                    <p>Please check your connection and try again.</p>
+                    <button class="retry-button" onclick="location.reload()">Retry</button>
+                </div>
+            `;
+        }
+        
+        // Initialize the application
         window.addEventListener("load", () => {
-            // Initialize the WASM app once everything is loaded
-            window.wasm_bindgen('./portfolio_frontend_bg.wasm')
+            updateProgress(75, 'Initializing WebAssembly...');
+            
+            // Get backend URL from query parameters if available
+            const urlParams = new URLSearchParams(window.location.search);
+            const backendParam = urlParams.get('backend');
+            
+            // This will be replaced by trunk with the actual path to the JS file
+            import('./portfolio_frontend.js')
                 .then(module => {
+                    updateProgress(85, 'Loading WASM module...');
+                    return module.default('./portfolio_frontend_bg.wasm');
+                })
+                .then(wasm => {
+                    updateProgress(95, 'Starting application...');
+                    
+                    // Display version info
+                    console.log(`Portfolio Optimizer ${wasm.get_version()}`);
+                    
                     // Clear the loading indicator
-                    document.getElementById('portfolio_app_canvas').innerHTML = '';
-                    // Start the app
-                    module.start_app();
+                    setTimeout(() => {
+                        updateProgress(100, 'Ready!');
+                        document.getElementById('portfolio_app_canvas').innerHTML = '';
+                        
+                        // Start the app
+                        wasm.start_app();
+                    }, 500);
                 })
                 .catch(e => {
                     console.error("Error loading WASM:", e);
-                    document.getElementById('portfolio_app_canvas').innerHTML = 
-                        '<div style="color: red;">Failed to load application. Please check console for errors.</div>';
+                    showError("Failed to load the application. This could be due to an unsupported browser or network issues.");
                 });
         });
     </script>

@@ -3,9 +3,17 @@ name = "portfolio_frontend"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
-crate-type = ["cdylib"]
+# Both lib and bin targets
+[[bin]]
+name = "portfolio_frontend_bin"
+path = "src/main.rs"
 
+[lib]
+name = "portfolio_frontend"
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+# Common dependencies for all targets
 [dependencies]
 egui = "0.27.2"
 eframe = { version = "0.27.2", features = ["default_fonts", "persistence"] }
@@ -17,13 +25,19 @@ futures = "0.3"
 futures-util = "0.3"
 rand = "0.8"
 chrono = { version = "0.4", features = ["serde"] }
-# No tokio for WASM - using web APIs instead
 tonic = { version = "0.7.2", features = ["codegen"] }
-tonic-web-wasm-client = "0.7.1"
+
+# Native-only dependencies
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1.38.0", features = ["rt-multi-thread", "macros", "sync", "time"] }
+
+# WASM-only dependencies
+[target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 console_error_panic_hook = "0.1.7"
 tracing-wasm = "0.2.1"
+tonic-web-wasm-client = "0.7.1"
 web-sys = { version = "0.3", features = [
     "Document",
     "Window",
@@ -31,7 +45,15 @@ web-sys = { version = "0.3", features = [
     "HtmlCanvasElement",
     "Performance",
     "PerformanceTiming",
-    "console"
+    "console",
+    "Location",
+    "Storage",
+    "Headers",
+    "Request",
+    "RequestInit",
+    "RequestMode",
+    "Response",
+    "Blob"
 ]}
 
 [build-dependencies]
